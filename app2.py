@@ -112,8 +112,44 @@ with tab1:
         df_sunburst = filtered_df.groupby(path).size().reset_index(name='Count')
         total_count = df_sunburst['Count'].sum()
         df_sunburst['Percentage'] = (df_sunburst['Count'] / total_count) * 100
-        fig_sunburst = px.sunburst(df_sunburst, path=path, values='Count', color='sleep_quality_cat', color_discrete_map=color_map, title='Hierarchical Distribution of Sleep Quality (Age → Sex → Quality)')
-        fig_sunburst.update_traces(hovertemplate='<b>%{label}</b><br>Count: %{value}<br>Proportion: %{customdata[0]:.2f}%<extra></extra>', customdata=np.stack((df_sunburst['Percentage']), axis=-1))
+        # 构造稳定的 id，确保百分比与节点一一对应，避免中心文字乱码
+        df_sunburst['id'] = (
+            df_sunburst['age_group'].astype(str) + "/" +
+            df_sunburst['sex_label'].astype(str) + "/" +
+            df_sunburst['sleep_quality_cat'].astype(str)
+        )
+        pct_map = dict(zip(df_sunburst['id'], df_sunburst['Percentage']))
+
+        fig_sunburst = px.sunburst(
+            df_sunburst,
+            path=path,
+            values='Count',
+            color='sleep_quality_cat',
+            color_discrete_map=color_map,
+            title='Hierarchical Distribution of Sleep Quality (Age → Sex → Quality)',
+            branchvalues="total"
+        )
+
+        if fig_sunburst.data:
+            ids = fig_sunburst.data[0].ids
+            text_labels = []
+            for _id in ids:
+                if _id == "" or _id is None:
+                    pct = 100.0  # root
+                else:
+                    pct = pct_map.get(_id, 0.0)
+                text_labels.append(f"{pct:.2f}%")
+
+            fig_sunburst.update_traces(
+                text=text_labels,
+                textinfo="label+text",
+                hovertemplate=(
+                    "<b>%{label}</b><br>"
+                    "Count: %{value}<br>"
+                    "Share of total: %{text}<extra></extra>"
+                )
+            )
+
         fig_sunburst.update_layout(height=600)
         st.plotly_chart(fig_sunburst, use_container_width=True)
     st.markdown("---")
